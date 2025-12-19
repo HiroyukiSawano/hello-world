@@ -1,4 +1,4 @@
-﻿# Repository Guidelines
+# Repository Guidelines
 
 ## 项目结构与模块组织
 - 采用 Maven 标准布局；业务代码在 `src/main/java/org/example/myjweb`，入口类为 `MyJWebApplication`；资源配置位于 `src/main/resources`（`application.properties` 可追加数据源、端口等私有覆盖）。
@@ -14,6 +14,10 @@
 - Java 21，统一使用 4 空格缩进，UTF-8 文件编码；包名小写，用领域分层（`controller/service/repository/config`）保持清晰。
 - 类名、枚举名用帕斯卡命名，方法与变量用驼峰；常量全大写下划线分隔；Spring 组件推荐构造器注入，避免字段注入。
 - 若使用 Lombok，显式保留可读性（如 `@Getter @Setter`）；接口返回值保持明确的 DTO，避免直接暴露实体。
+
+## 注释规范
+- 数据库结构（DDL）必须写中文注释，表与字段使用 COMMENT 说明用途与含义。
+- 代码注释统一使用中文，对关键流程、非直观逻辑和重要约束给出简洁说明。
 
 ## 测试指南
 - 采用 JUnit 5 与 `spring-boot-starter-test`；安全相关场景可用 `spring-security-test` 的 `@WithMockUser` 或 `SecurityMockMvcRequestPostProcessors`.
