@@ -39,3 +39,6 @@
 - 生成的 Asciidoctor 文档仅用于发布阶段，避免将 `target/` 内容加入版本库；如需共享生成结果，请上传到制品库或附件而非提交源码。
 
 
+
+## Progress Tracking
+- Review `PROGRESS.md` at the start of work and update it after completing milestones.
