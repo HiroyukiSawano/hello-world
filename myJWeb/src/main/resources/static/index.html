@@ -75,6 +75,10 @@
         }
         .primary { background: #2563eb; color: #fff; }
         .ghost { background: #e2e8f0; color: #0f172a; }
+        .ghost.small {
+            padding: 6px 10px;
+            font-weight: 500;
+        }
         pre {
             background: #0f172a;
             color: #e2e8f0;
@@ -96,6 +100,53 @@
         .fail { background: #fee2e2; color: #991b1b; }
         .muted { color: #6b7280; font-size: 13px; }
         .error { color: #b91c1c; font-weight: 700; }
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .section-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .kv-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .kv-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)) 36px;
+            gap: 8px;
+            align-items: center;
+        }
+        .kv-row button {
+            width: 100%;
+        }
+        .pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            border-radius: 999px;
+            background: #e2e8f0;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .pill small {
+            color: #475569;
+            font-weight: 500;
+        }
+        details summary {
+            cursor: pointer;
+            font-weight: 700;
+        }
+        details summary::-webkit-details-marker {
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -153,21 +204,53 @@
 
 <div class="card grid two-col">
     <div>
-        <label>Headers（JSON 对象或数组）</label>
-        <textarea id="headersInput" placeholder='{"Content-Type":"application/json"}'></textarea>
+        <div class="section-header">
+            <label>Headers</label>
+            <div class="section-actions">
+                <button id="headersToggleBtn" class="ghost small">切换为 JSON</button>
+                <button id="headersAddBtn" class="ghost small">新增一行</button>
+            </div>
+        </div>
+        <div class="muted" style="margin-bottom:8px;">可视化列表编辑，或切换为 JSON 粘贴/批量编辑。</div>
+        <div id="headersList" class="kv-list"></div>
+        <textarea id="headersInput" placeholder='{"Content-Type":"application/json"}' style="display:none;"></textarea>
     </div>
     <div>
-        <label>Query Params（JSON 对象或数组）</label>
-        <textarea id="queryInput" placeholder='{"page":"1"}'></textarea>
+        <div class="section-header">
+            <label>Query Params</label>
+            <div class="section-actions">
+                <button id="queryToggleBtn" class="ghost small">切换为 JSON</button>
+                <button id="queryAddBtn" class="ghost small">新增一行</button>
+            </div>
+        </div>
+        <div class="muted" style="margin-bottom:8px;">快速添加查询字符串，或切换为 JSON。</div>
+        <div id="queryList" class="kv-list"></div>
+        <textarea id="queryInput" placeholder='{"page":"1"}' style="display:none;"></textarea>
     </div>
     <div>
-        <label>Cookies（JSON 对象或数组）</label>
-        <textarea id="cookiesInput" placeholder='{"session":"token"}'></textarea>
+        <div class="section-header">
+            <label>Cookies</label>
+            <div class="section-actions">
+                <button id="cookiesToggleBtn" class="ghost small">切换为 JSON</button>
+                <button id="cookiesAddBtn" class="ghost small">新增一行</button>
+            </div>
+        </div>
+        <div class="muted" style="margin-bottom:8px;">输入键值对或切换 JSON。</div>
+        <div id="cookiesList" class="kv-list"></div>
+        <textarea id="cookiesInput" placeholder='{"session":"token"}' style="display:none;"></textarea>
     </div>
     <div>
-        <label>Body / GraphQL / Form</label>
-        <textarea id="bodyInput" placeholder='{"key":"value"} 或 Raw 文本'></textarea>
-        <div class="muted">JSON 模式发送 bodyJson；Raw 模式发送 base64 的 bodyRaw。</div>
+        <div class="section-header">
+            <label>Body / GraphQL / Form</label>
+            <div class="section-actions">
+                <button id="bodyToggleBtn" class="ghost small">切换为 JSON</button>
+                <button id="bodyAddBtn" class="ghost small">新增一行</button>
+            </div>
+        </div>
+        <div class="muted" style="margin-bottom:8px;">JSON 模式支持列表与 JSON 文本双向切换；Raw 模式直接填写文本。</div>
+        <div id="bodyList" class="kv-list"></div>
+        <textarea id="bodyJsonInput" placeholder='{"key":"value"}' style="display:none;"></textarea>
+        <textarea id="bodyRawInput" placeholder="Raw 文本" style="display:none;"></textarea>
     </div>
 </div>
 
@@ -196,6 +279,14 @@
     const responseHeaders = document.getElementById("responseHeaders");
     const responseBody = document.getElementById("responseBody");
     const errorBox = document.getElementById("errorBox");
+    const bodyModeSelect = document.getElementById("bodyMode");
+
+    const kvState = {
+        headers: { list: [{ key: "", value: "" }], mode: "list" },
+        query: { list: [{ key: "", value: "" }], mode: "list" },
+        cookies: { list: [{ key: "", value: "" }], mode: "list" },
+        body: { list: [{ key: "", value: "" }], mode: "list" }
+    };
 
     function setStatus(text, success) {
         statusBadge.textContent = text;
@@ -209,16 +300,6 @@
         } else {
             errorBox.style.display = "none";
             errorBox.textContent = "";
-        }
-    }
-
-    function safeJson(text, fieldName) {
-        const trimmed = (text || "").trim();
-        if (!trimmed) return null;
-        try {
-            return JSON.stringify(JSON.parse(trimmed));
-        } catch (e) {
-            throw new Error(`${fieldName} 不是有效的 JSON：${e.message}`);
         }
     }
 
@@ -254,11 +335,192 @@
         setError("");
     }
 
+    function ensureListHasRow(list) {
+        if (list.length === 0) {
+            list.push({ key: "", value: "" });
+        }
+    }
+
+    function renderKvList(name) {
+        const state = kvState[name];
+        const listEl = document.getElementById(`${name}List`);
+        listEl.innerHTML = "";
+        ensureListHasRow(state.list);
+        state.list.forEach((item, index) => {
+            const row = document.createElement("div");
+            row.className = "kv-row";
+
+            const keyInput = document.createElement("input");
+            keyInput.placeholder = "键";
+            keyInput.value = item.key || "";
+            keyInput.addEventListener("input", (e) => {
+                state.list[index].key = e.target.value;
+            });
+
+            const valueInput = document.createElement("input");
+            valueInput.placeholder = "值";
+            valueInput.value = item.value || "";
+            valueInput.addEventListener("input", (e) => {
+                state.list[index].value = e.target.value;
+            });
+
+            const removeBtn = document.createElement("button");
+            removeBtn.className = "ghost small";
+            removeBtn.textContent = "删";
+            removeBtn.title = "删除该行";
+            removeBtn.addEventListener("click", () => {
+                state.list.splice(index, 1);
+                renderKvList(name);
+            });
+
+            row.appendChild(keyInput);
+            row.appendChild(valueInput);
+            row.appendChild(removeBtn);
+            listEl.appendChild(row);
+        });
+    }
+
+    function listToJsonString(list) {
+        const obj = {};
+        list.filter(item => item.key).forEach(item => {
+            obj[item.key] = item.value ?? "";
+        });
+        return JSON.stringify(obj, null, 2);
+    }
+
+    function parseJsonToList(text, fieldName) {
+        const trimmed = (text || "").trim();
+        if (!trimmed) return [];
+        try {
+            const parsed = JSON.parse(trimmed);
+            if (Array.isArray(parsed)) {
+                return parsed.map((item) => {
+                    if (typeof item === "object" && item !== null && "key" in item && "value" in item) {
+                        return { key: String(item.key), value: String(item.value ?? "") };
+                    }
+                    throw new Error(`${fieldName} 数组元素需包含 key 与 value`);
+                });
+            }
+            if (typeof parsed === "object" && parsed !== null) {
+                return Object.entries(parsed).map(([k, v]) => ({ key: String(k), value: String(v ?? "") }));
+            }
+            throw new Error(`${fieldName} 需为对象或包含 {key,value} 的数组`);
+        } catch (e) {
+            throw new Error(`${fieldName} 不是有效的 JSON：${e.message}`);
+        }
+    }
+
+    function toggleKvMode(name, textareaId, toggleBtnId) {
+        const state = kvState[name];
+        const textarea = document.getElementById(textareaId);
+        const toggleBtn = document.getElementById(toggleBtnId);
+        const listEl = document.getElementById(`${name}List`);
+        if (state.mode === "list") {
+            textarea.value = listToJsonString(state.list);
+            textarea.style.display = "block";
+            listEl.style.display = "none";
+            state.mode = "json";
+            toggleBtn.textContent = "切换为列表";
+        } else {
+            try {
+                state.list = parseJsonToList(textarea.value, name);
+                renderKvList(name);
+                textarea.style.display = "none";
+                listEl.style.display = "flex";
+                state.mode = "list";
+                toggleBtn.textContent = "切换为 JSON";
+                setError("");
+            } catch (e) {
+                setError(e.message);
+            }
+        }
+    }
+
+    function bindKvSection(name, textareaId, toggleBtnId, addBtnId) {
+        renderKvList(name);
+        document.getElementById(toggleBtnId).addEventListener("click", () => {
+            toggleKvMode(name, textareaId, toggleBtnId);
+        });
+        document.getElementById(addBtnId).addEventListener("click", () => {
+            kvState[name].list.push({ key: "", value: "" });
+            renderKvList(name);
+        });
+    }
+
+    function getKvJsonString(name, textareaId, label) {
+        const state = kvState[name];
+        if (state.mode === "list") {
+            return listToJsonString(state.list);
+        }
+        const text = document.getElementById(textareaId).value;
+        const trimmed = (text || "").trim();
+        if (!trimmed) return "{}";
+        try {
+            return JSON.stringify(JSON.parse(trimmed));
+        } catch (e) {
+            throw new Error(`${label} 不是有效的 JSON：${e.message}`);
+        }
+    }
+
+    function renderBodyEditor() {
+        const mode = bodyModeSelect.value;
+        const rawArea = document.getElementById("bodyRawInput");
+        const jsonArea = document.getElementById("bodyJsonInput");
+        const listEl = document.getElementById("bodyList");
+        const toggleBtn = document.getElementById("bodyToggleBtn");
+        const addBtn = document.getElementById("bodyAddBtn");
+
+        if (mode === "none") {
+            rawArea.style.display = "none";
+            jsonArea.style.display = "none";
+            listEl.style.display = "none";
+            toggleBtn.disabled = true;
+            addBtn.disabled = true;
+            return;
+        }
+        if (mode === "raw") {
+            rawArea.style.display = "block";
+            jsonArea.style.display = "none";
+            listEl.style.display = "none";
+            toggleBtn.disabled = true;
+            addBtn.disabled = true;
+            return;
+        }
+        // JSON 模式
+        toggleBtn.disabled = false;
+        addBtn.disabled = false;
+        if (kvState.body.mode === "list") {
+            listEl.style.display = "flex";
+            jsonArea.style.display = "none";
+        } else {
+            listEl.style.display = "none";
+            jsonArea.style.display = "block";
+        }
+    }
+
     resetBtn.addEventListener("click", () => {
+        kvState.headers.list = [{ key: "", value: "" }];
+        kvState.query.list = [{ key: "", value: "" }];
+        kvState.cookies.list = [{ key: "", value: "" }];
+        kvState.body.list = [{ key: "", value: "" }];
+        kvState.headers.mode = "list";
+        kvState.query.mode = "list";
+        kvState.cookies.mode = "list";
+        kvState.body.mode = "list";
         document.getElementById("headersInput").value = "";
         document.getElementById("queryInput").value = "";
         document.getElementById("cookiesInput").value = "";
-        document.getElementById("bodyInput").value = "";
+        document.getElementById("bodyJsonInput").value = "";
+        document.getElementById("bodyRawInput").value = "";
+        document.getElementById("bodyToggleBtn").textContent = "切换为 JSON";
+        document.getElementById("headersToggleBtn").textContent = "切换为 JSON";
+        document.getElementById("queryToggleBtn").textContent = "切换为 JSON";
+        document.getElementById("cookiesToggleBtn").textContent = "切换为 JSON";
+        renderKvList("headers");
+        renderKvList("query");
+        renderKvList("cookies");
+        renderKvList("body");
+        renderBodyEditor();
         resetOutputs();
     });
 
@@ -313,22 +575,27 @@
             name,
             method,
             url,
-            headersJson: safeJson(document.getElementById("headersInput").value, "Headers") || "{}",
-            queryParamsJson: safeJson(document.getElementById("queryInput").value, "Query Params") || "{}",
-            cookiesJson: safeJson(document.getElementById("cookiesInput").value, "Cookies") || "{}",
+            headersJson: getKvJsonString("headers", "headersInput", "Headers"),
+            queryParamsJson: getKvJsonString("query", "queryInput", "Query Params"),
+            cookiesJson: getKvJsonString("cookies", "cookiesInput", "Cookies"),
             timeoutMs: Number(document.getElementById("timeoutMs").value) || null,
             followRedirects: Number(document.getElementById("followRedirects").value) || 0
         };
 
         const bodyMode = document.getElementById("bodyMode").value;
-        const bodyInput = document.getElementById("bodyInput").value;
         const bodyMimeInput = document.getElementById("bodyMime").value.trim();
 
-        if (bodyMode === "json" && bodyInput.trim()) {
-            payload.bodyJson = bodyInput;
+        if (bodyMode === "json") {
+            const jsonStr = getKvJsonString("body", "bodyJsonInput", "Body JSON");
+            if (jsonStr && jsonStr !== "{}") {
+                payload.bodyJson = jsonStr;
+            }
             payload.bodyMime = bodyMimeInput || "application/json";
-        } else if (bodyMode === "raw" && bodyInput.trim()) {
-            payload.bodyRaw = toBase64(bodyInput);
+        } else if (bodyMode === "raw") {
+            const rawText = document.getElementById("bodyRawInput").value || "";
+            if (rawText.trim()) {
+                payload.bodyRaw = toBase64(rawText);
+            }
             payload.bodyMime = bodyMimeInput || "text/plain";
         } else {
             payload.bodyMime = bodyMimeInput || "";
@@ -349,6 +616,14 @@
         const decoded = decodeBase64(result.responseBody);
         responseBody.textContent = `响应体 (${result.responseMime || "unknown"}; ${result.responseCharset || ""}):\n\n${decoded}`;
     }
+
+    // 初始化 KV 区块与事件
+    bindKvSection("headers", "headersInput", "headersToggleBtn", "headersAddBtn");
+    bindKvSection("query", "queryInput", "queryToggleBtn", "queryAddBtn");
+    bindKvSection("cookies", "cookiesInput", "cookiesToggleBtn", "cookiesAddBtn");
+    bindKvSection("body", "bodyJsonInput", "bodyToggleBtn", "bodyAddBtn");
+    bodyModeSelect.addEventListener("change", renderBodyEditor);
+    renderBodyEditor();
 </script>
 </body>
 </html>
