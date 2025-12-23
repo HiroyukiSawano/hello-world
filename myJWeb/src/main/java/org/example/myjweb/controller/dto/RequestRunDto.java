@@ -25,4 +25,18 @@ public final class RequestRunDto {
                            Integer success, String responseHeadersJson, String responseMime, String responseCharset,
                            Long responseSize, LocalDateTime createdAt) {
     }
+
+    /**
+     * 执行请求的请求体。
+     */
+    public record ExecuteRequest(Long environmentId) {
+    }
+
+    /**
+     * 含响应体的执行记录详情响应。
+     */
+    public record DetailResponse(Long id, Long requestVersionId, Long environmentId, Integer statusCode,
+                                 Integer durationMs, Integer success, String responseHeadersJson, String responseMime,
+                                 String responseCharset, Long responseSize, LocalDateTime createdAt, byte[] responseBody) {
+    }
 }

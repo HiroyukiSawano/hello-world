@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>MyJWeb - HTTP 调试 MVP</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        :root {
+            font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+            color: #1f2937;
+            background: #f8fafc;
+        }
+        body {
+            margin: 0;
+            padding: 24px;
+        }
+        h1 {
+            margin: 0 0 16px 0;
+            font-size: 22px;
+            color: #0f172a;
+        }
+        .card {
+            background: #fff;
+            border-radius: 10px;
+            padding: 16px;
+            box-shadow: 0 8px 24px rgba(15,23,42,0.08);
+            margin-bottom: 16px;
+        }
+        .grid {
+            display: grid;
+            gap: 12px;
+        }
+        .two-col {
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        }
+        label {
+            font-weight: 600;
+            display: block;
+            margin-bottom: 6px;
+        }
+        input, select, textarea, button {
+            width: 100%;
+            box-sizing: border-box;
+            font: inherit;
+        }
+        input, select, textarea {
+            padding: 10px;
+            border: 1px solid #d0d7e2;
+            border-radius: 6px;
+            background: #f8fafc;
+        }
+        textarea {
+            min-height: 80px;
+            resize: vertical;
+        }
+        .row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        .row > *:first-child { flex: 0 0 120px; }
+        .row > *:last-child { flex: 1; }
+        .actions {
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+            flex-wrap: wrap;
+        }
+        button {
+            padding: 10px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+        .primary { background: #2563eb; color: #fff; }
+        .ghost { background: #e2e8f0; color: #0f172a; }
+        pre {
+            background: #0f172a;
+            color: #e2e8f0;
+            padding: 12px;
+            border-radius: 8px;
+            overflow: auto;
+            white-space: pre-wrap;
+        }
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 700;
+            color: #0f172a;
+            background: #e2e8f0;
+        }
+        .success { background: #dcfce7; color: #166534; }
+        .fail { background: #fee2e2; color: #991b1b; }
+        .muted { color: #6b7280; font-size: 13px; }
+        .error { color: #b91c1c; font-weight: 700; }
+    </style>
+</head>
+<body>
+<h1>接口调试台（MVP）</h1>
+<div class="card grid two-col">
+    <div>
+        <label>请求名称</label>
+        <input id="name" placeholder="例如：获取用户列表" value="Quick Request">
+    </div>
+    <div>
+        <label>目标 URL</label>
+        <input id="url" placeholder="https://api.example.com/users">
+    </div>
+    <div>
+        <label>HTTP 方法</label>
+        <select id="method">
+            <option>GET</option>
+            <option>POST</option>
+            <option>PUT</option>
+            <option>PATCH</option>
+            <option>DELETE</option>
+        </select>
+    </div>
+    <div>
+        <label>环境 ID（可选，用于变量替换）</label>
+        <input id="environmentId" type="number" placeholder="例如：1">
+    </div>
+    <div>
+        <label>超时（毫秒，可选）</label>
+        <input id="timeoutMs" type="number" min="0" placeholder="默认 10s">
+    </div>
+    <div>
+        <label>跟随重定向</label>
+        <select id="followRedirects">
+            <option value="1" selected>是</option>
+            <option value="0">否</option>
+        </select>
+    </div>
+    <div>
+        <label>鉴权（Basic，可选）</label>
+        <input id="authUser" placeholder="用户名">
+        <input id="authPass" type="password" placeholder="密码" style="margin-top:6px;">
+        <div class="muted">留空则不附带 Authorization 头。</div>
+    </div>
+    <div>
+        <label>请求体类型</label>
+        <select id="bodyMode">
+            <option value="none">无</option>
+            <option value="json">JSON</option>
+            <option value="raw">Raw 文本</option>
+        </select>
+        <input id="bodyMime" placeholder="Content-Type（可选）" style="margin-top:6px;" value="application/json">
+    </div>
+</div>
+
+<div class="card grid two-col">
+    <div>
+        <label>Headers（JSON 对象或数组）</label>
+        <textarea id="headersInput" placeholder='{"Content-Type":"application/json"}'></textarea>
+    </div>
+    <div>
+        <label>Query Params（JSON 对象或数组）</label>
+        <textarea id="queryInput" placeholder='{"page":"1"}'></textarea>
+    </div>
+    <div>
+        <label>Cookies（JSON 对象或数组）</label>
+        <textarea id="cookiesInput" placeholder='{"session":"token"}'></textarea>
+    </div>
+    <div>
+        <label>Body / GraphQL / Form</label>
+        <textarea id="bodyInput" placeholder='{"key":"value"} 或 Raw 文本'></textarea>
+        <div class="muted">JSON 模式发送 bodyJson；Raw 模式发送 base64 的 bodyRaw。</div>
+    </div>
+</div>
+
+<div class="card actions">
+    <button class="ghost" id="resetBtn">清空</button>
+    <button class="primary" id="sendBtn">发送并执行</button>
+</div>
+
+<div class="card">
+    <div class="row" style="margin-bottom:8px;">
+        <div class="badge" id="statusBadge">未执行</div>
+        <div class="muted" id="durationLabel"></div>
+    </div>
+    <div class="muted" id="hint">响应详情将展示在这里。</div>
+    <pre id="responseHeaders" style="display:none;"></pre>
+    <pre id="responseBody" style="display:none;"></pre>
+    <div class="error" id="errorBox" style="display:none;"></div>
+</div>
+
+<script>
+    const sendBtn = document.getElementById("sendBtn");
+    const resetBtn = document.getElementById("resetBtn");
+    const statusBadge = document.getElementById("statusBadge");
+    const durationLabel = document.getElementById("durationLabel");
+    const hint = document.getElementById("hint");
+    const responseHeaders = document.getElementById("responseHeaders");
+    const responseBody = document.getElementById("responseBody");
+    const errorBox = document.getElementById("errorBox");
+
+    function setStatus(text, success) {
+        statusBadge.textContent = text;
+        statusBadge.className = "badge " + (success === true ? "success" : success === false ? "fail" : "");
+    }
+
+    function setError(message) {
+        if (message) {
+            errorBox.style.display = "block";
+            errorBox.textContent = message;
+        } else {
+            errorBox.style.display = "none";
+            errorBox.textContent = "";
+        }
+    }
+
+    function safeJson(text, fieldName) {
+        const trimmed = (text || "").trim();
+        if (!trimmed) return null;
+        try {
+            return JSON.stringify(JSON.parse(trimmed));
+        } catch (e) {
+            throw new Error(`${fieldName} 不是有效的 JSON：${e.message}`);
+        }
+    }
+
+    function toBase64(text) {
+        return btoa(unescape(encodeURIComponent(text)));
+    }
+
+    function decodeBase64(text, charset = "utf-8") {
+        if (!text) return "";
+        try {
+            return decodeURIComponent(escape(atob(text)));
+        } catch (e) {
+            return text;
+        }
+    }
+
+    function buildAuthHeader() {
+        const user = document.getElementById("authUser").value;
+        const pass = document.getElementById("authPass").value;
+        if (!user) return null;
+        const token = btoa(`${user}:${pass}`);
+        return `Basic ${token}`;
+    }
+
+    function resetOutputs() {
+        setStatus("未执行");
+        durationLabel.textContent = "";
+        hint.style.display = "block";
+        responseHeaders.style.display = "none";
+        responseBody.style.display = "none";
+        responseHeaders.textContent = "";
+        responseBody.textContent = "";
+        setError("");
+    }
+
+    resetBtn.addEventListener("click", () => {
+        document.getElementById("headersInput").value = "";
+        document.getElementById("queryInput").value = "";
+        document.getElementById("cookiesInput").value = "";
+        document.getElementById("bodyInput").value = "";
+        resetOutputs();
+    });
+
+    sendBtn.addEventListener("click", async () => {
+        resetOutputs();
+        setStatus("执行中…");
+        try {
+            const payload = buildRequestPayload();
+            const headers = {
+                "Content-Type": "application/json"
+            };
+            const authHeader = buildAuthHeader();
+            if (authHeader) headers["Authorization"] = authHeader;
+
+            const createRes = await fetch("/api/requests", {
+                method: "POST",
+                headers,
+                body: JSON.stringify(payload)
+            });
+            if (!createRes.ok) {
+                throw new Error(`创建请求失败：${createRes.status} ${await createRes.text()}`);
+            }
+            const created = await createRes.json();
+            const versionId = created.id;
+
+            const environmentIdText = document.getElementById("environmentId").value.trim();
+            const execBody = environmentIdText ? { environmentId: Number(environmentIdText) } : null;
+            const execHeaders = { ...headers };
+            const execRes = await fetch(`/api/request-versions/${versionId}/execute`, {
+                method: "POST",
+                headers: execBody ? execHeaders : authHeader ? { "Authorization": authHeader } : {},
+                body: execBody ? JSON.stringify(execBody) : null
+            });
+            if (!execRes.ok) {
+                throw new Error(`执行失败：${execRes.status} ${await execRes.text()}`);
+            }
+            const result = await execRes.json();
+            renderResult(result);
+        } catch (e) {
+            setStatus("失败", false);
+            setError(e.message);
+        }
+    });
+
+    function buildRequestPayload() {
+        const method = document.getElementById("method").value;
+        const url = document.getElementById("url").value.trim();
+        const name = document.getElementById("name").value.trim() || url || "Quick Request";
+        if (!url) throw new Error("URL 不能为空");
+
+        const payload = {
+            name,
+            method,
+            url,
+            headersJson: safeJson(document.getElementById("headersInput").value, "Headers") || "{}",
+            queryParamsJson: safeJson(document.getElementById("queryInput").value, "Query Params") || "{}",
+            cookiesJson: safeJson(document.getElementById("cookiesInput").value, "Cookies") || "{}",
+            timeoutMs: Number(document.getElementById("timeoutMs").value) || null,
+            followRedirects: Number(document.getElementById("followRedirects").value) || 0
+        };
+
+        const bodyMode = document.getElementById("bodyMode").value;
+        const bodyInput = document.getElementById("bodyInput").value;
+        const bodyMimeInput = document.getElementById("bodyMime").value.trim();
+
+        if (bodyMode === "json" && bodyInput.trim()) {
+            payload.bodyJson = bodyInput;
+            payload.bodyMime = bodyMimeInput || "application/json";
+        } else if (bodyMode === "raw" && bodyInput.trim()) {
+            payload.bodyRaw = toBase64(bodyInput);
+            payload.bodyMime = bodyMimeInput || "text/plain";
+        } else {
+            payload.bodyMime = bodyMimeInput || "";
+        }
+        return payload;
+    }
+
+    function renderResult(result) {
+        const success = result.success === 1 || (result.statusCode >= 200 && result.statusCode < 400);
+        setStatus(`状态: ${result.statusCode ?? "N/A"}`, success);
+        durationLabel.textContent = `耗时: ${result.durationMs ?? "-"} ms | 大小: ${result.responseSize ?? "-"} bytes`;
+        hint.style.display = "none";
+
+        responseHeaders.style.display = "block";
+        responseHeaders.textContent = `响应头:\n${JSON.stringify(JSON.parse(result.responseHeadersJson || "{}"), null, 2)}`;
+
+        responseBody.style.display = "block";
+        const decoded = decodeBase64(result.responseBody);
+        responseBody.textContent = `响应体 (${result.responseMime || "unknown"}; ${result.responseCharset || ""}):\n\n${decoded}`;
+    }
+</script>
+</body>
+</html>

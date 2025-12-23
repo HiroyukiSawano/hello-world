@@ -4,6 +4,7 @@ import java.util.List;
 
 import org.example.myjweb.controller.dto.RequestRunDto;
 import org.example.myjweb.entity.RequestRun;
+import org.example.myjweb.service.RequestExecutionService;
 import org.example.myjweb.service.RequestRunService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -21,10 +22,19 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api")
 public class RequestRunController {
 
+    private final RequestExecutionService requestExecutionService;
     private final RequestRunService requestRunService;
 
-    public RequestRunController(RequestRunService requestRunService) {
+    public RequestRunController(RequestExecutionService requestExecutionService, RequestRunService requestRunService) {
+        this.requestExecutionService = requestExecutionService;
         this.requestRunService = requestRunService;
+    }
+
+    @PostMapping("/request-versions/{requestVersionId}/execute")
+    public RequestRunDto.DetailResponse execute(@PathVariable Long requestVersionId,
+                                                @RequestBody(required = false) RequestRunDto.ExecuteRequest request) {
+        Long environmentId = request == null ? null : request.environmentId();
+        return toDetailResponse(requestExecutionService.executeAndRecord(requestVersionId, environmentId));
     }
 
     @PostMapping("/request-versions/{requestVersionId}/runs")
@@ -78,5 +88,12 @@ public class RequestRunController {
         return new RequestRunDto.Response(run.getId(), run.getRequestVersionId(), run.getEnvironmentId(),
                 run.getStatusCode(), run.getDurationMs(), run.getSuccess(), run.getResponseHeadersJson(),
                 run.getResponseMime(), run.getResponseCharset(), run.getResponseSize(), run.getCreatedAt());
+    }
+
+    private static RequestRunDto.DetailResponse toDetailResponse(RequestRun run) {
+        return new RequestRunDto.DetailResponse(run.getId(), run.getRequestVersionId(), run.getEnvironmentId(),
+                run.getStatusCode(), run.getDurationMs(), run.getSuccess(), run.getResponseHeadersJson(),
+                run.getResponseMime(), run.getResponseCharset(), run.getResponseSize(), run.getCreatedAt(),
+                run.getResponseBody());
     }
 }
